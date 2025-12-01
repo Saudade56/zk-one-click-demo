@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>匿名なのに一人一回ボタン (ZK)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 720px; margin:auto; }
+    h1 { font-size: 1.4rem; }
+    button { font-size: 1rem; padding: .8rem 1.2rem; }
+    .box { background: #f7f7f8; border:1px solid #ddd; border-radius:8px; padding:1rem; margin-top:1rem; }
+    .muted { color:#666; font-size:.9rem; }
+    pre { white-space: pre-wrap; word-break: break-word; font-size: .8rem; }
+  </style>
+</head>
+<body>
+  <h1>匿名なのに「一人一回」ボタン（ゼロ知識証明デモ）</h1>
+  <p class="muted">
+    ※ 名前・メールアドレスなどは一切送りません。<br>
+    送信するデータは下の「送信内容」に全部表示されます。
+  </p>
+  <button id="btn">+1 する</button>
+  <div id="result" class="box" aria-live="polite"></div>
+  <details class="box" open>
+    <summary>送信内容プレビュー（proof / root / epoch / signal / nullifier）</summary>
+    <pre id="payload"></pre>
+  </details>
+  <script type="module">
+    import { Identity } from "https://esm.sh/@semaphore-protocol/identity@latest";
+    import { generateProof } from "https://esm.sh/@semaphore-protocol/proof@latest";
+
+    // ▼ ここを、さっきの Vercel のURLに置き換える
+    const API = "https://zk-one-click-api.vercel.app";
+
+    const KEY = "zk-demo-secret";
+
+    // 1) ブラウザ専用の秘密IDを発行（localStorageに保存）
+    let secret = localStorage.getItem(KEY);
+    if (!secret) {
+      secret = new Identity().toString();
+      localStorage.setItem(KEY, secret);
+    }
+    const identity = Identity.fromString(secret);
+
+    const btn = document.getElementById("btn");
+    const result = document.getElementById("result");
+    const payloadBox = document.getElementById("payload");
+
+    btn.onclick = async () => {
+      result.textContent = "証明を生成しています…（1〜2秒かかることがあります）";
+
+      // epoch = 今日の日付（例: "2025-12-05"）
+      const today = new Date().toISOString().slice(0, 10);
+      const epoch = today;
+      const signal = "like";
+
+      try {
+        // デモ用の root（本気でやるときはサーバから配る）
+        const root = "0x123456789abcdef";
+
+        // 2) ゼロ知識証明を生成
+        const { proof, publicSignals } = await generateProof(identity, {
+          merkleRoot: root,
+          externalNullifier: epoch,
+          signal
+        });
+
+        const nullifier = publicSignals.nullifierHash;
+
+        // 3) サーバに送るJSON
+        const body = { proof, root, epoch, signal, nullifier };
+        payloadBox.textContent = JSON.stringify(body, null, 2);
+
+        // 4) Vercel Functions に送信
+        const resp = await fetch(`${API}/api/verify/rln`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        const res = await resp.json();
+        if (resp.ok && res.ok) {
+          result.textContent = `OK! いまのカウント: ${res.count}`;
+        } else {
+          result.textContent = `失敗: ${res.reason || "unknown error"}`;
+        }
+      } catch (e) {
+        console.error(e);
+        result.textContent = `エラーが発生しました: ${e}`;
+      }
+    };
+  </script>
+</body>
+</html>
+
