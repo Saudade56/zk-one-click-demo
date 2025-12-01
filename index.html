@@ -28,34 +28,43 @@
     import { Identity } from "https://esm.sh/@semaphore-protocol/identity@latest";
     import { generateProof } from "https://esm.sh/@semaphore-protocol/proof@latest";
 
-    // ▼ ここを、さっきの Vercel のURLに置き換える
     const API = "https://zk-one-click-api.vercel.app";
 
     const KEY = "zk-demo-secret";
 
-    // 1) ブラウザ専用の秘密IDを発行（localStorageに保存）
-    let secret = localStorage.getItem(KEY);
-    if (!secret) {
-      secret = new Identity().toString();
-      localStorage.setItem(KEY, secret);
-    }
-    const identity = Identity.fromString(secret);
+    // DOMの読み込み完了を待つ
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1) ブラウザ専用の秘密IDを発行（localStorageに保存）
+      let secret = localStorage.getItem(KEY);
+      if (!secret) {
+        secret = new Identity().toString();
+        localStorage.setItem(KEY, secret);
+      }
+      const identity = Identity.fromString(secret);
 
-    const btn = document.getElementById("btn");
-    const result = document.getElementById("result");
-    const payloadBox = document.getElementById("payload");
+      const btn = document.getElementById("btn");
+      const result = document.getElementById("result");
+      const payloadBox = document.getElementById("payload");
 
-    btn.onclick = async () => {
-      result.textContent = "証明を生成しています…（1〜2秒かかることがあります）";
+      if (!btn || !result || !payloadBox) {
+        console.error("Required elements not found");
+        return;
+      }
 
-      // epoch = 今日の日付（例: "2025-12-05"）
-      const today = new Date().toISOString().slice(0, 10);
-      const epoch = today;
-      const signal = "like";
-
+      btn.onclick = async () => {
       try {
+        result.textContent = "証明を生成しています…（1〜2秒かかることがあります）";
+        btn.disabled = true;
+
+        // epoch = 今日の日付（例: "2025-12-05"）
+        const today = new Date().toISOString().slice(0, 10);
+        const epoch = today;
+        const signal = "like";
+
         // デモ用の root（本気でやるときはサーバから配る）
         const root = "0x123456789abcdef";
+
+        console.log("Generating proof...", { root, epoch, signal });
 
         // 2) ゼロ知識証明を生成
         const { proof, publicSignals } = await generateProof(identity, {
@@ -64,11 +73,15 @@
           signal
         });
 
+        console.log("Proof generated:", { proof, publicSignals });
+
         const nullifier = publicSignals.nullifierHash;
 
         // 3) サーバに送るJSON
         const body = { proof, root, epoch, signal, nullifier };
         payloadBox.textContent = JSON.stringify(body, null, 2);
+
+        console.log("Sending request to API...", `${API}/api/verify/rln`);
 
         // 4) Vercel Functions に送信
         const resp = await fetch(`${API}/api/verify/rln`, {
@@ -77,17 +90,24 @@
           body: JSON.stringify(body)
         });
 
+        console.log("Response status:", resp.status);
+
         const res = await resp.json();
+        console.log("Response data:", res);
+
         if (resp.ok && res.ok) {
           result.textContent = `OK! いまのカウント: ${res.count}`;
         } else {
           result.textContent = `失敗: ${res.reason || "unknown error"}`;
         }
       } catch (e) {
-        console.error(e);
-        result.textContent = `エラーが発生しました: ${e}`;
-      }
-    };
+        console.error("Error details:", e);
+        result.textContent = `エラーが発生しました: ${e.message || e}`;
+        payloadBox.textContent = `エラー詳細:\n${e.stack || e}`;
+      } finally {
+        btn.disabled = false;
+      };
+    });
   </script>
 </body>
 </html>
