@@ -71,9 +71,8 @@
           console.log("Generating proof...", { root, epoch, signal });
 
           // 2) Groupを作成（デモ用の空のGroup）
-          const group = new Group(20);
-          // IdentityをGroupに追加
-          group.addMember(identity.commitment);
+          // Groupのコンストラクタは、treeDepthとmembers（オプション）を受け取る
+          const group = new Group(20, [identity.commitment]);
 
           // 3) ゼロ知識証明を生成
           // Semaphore Protocolのデモ用circuitファイルを使用
