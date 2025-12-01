@@ -70,7 +70,16 @@
           console.log("Generating proof...", { root, epoch, signal });
 
           // 2) ゼロ知識証明を生成
+          // Semaphore Protocolのデモ用circuitファイルを使用
+          const wasmFilePath = "https://www.trusted-setup-pse.org/semaphore/20/semaphore.wasm";
+          const zkeyFilePath = "https://www.trusted-setup-pse.org/semaphore/20/semaphore.zkey";
+
           const { proof, publicSignals } = await generateProof(identity, {
+            circuit: {
+              wasmFilePath,
+              zkeyFilePath
+            },
+            merkleTreeDepth: 20,
             merkleRoot: root,
             externalNullifier: epoch,
             signal
