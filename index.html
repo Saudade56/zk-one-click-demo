@@ -26,6 +26,7 @@
   </details>
   <script type="module">
     import { Identity } from "https://esm.sh/@semaphore-protocol/identity@latest";
+    import { Group } from "https://esm.sh/@semaphore-protocol/group@latest";
     import { generateProof } from "https://esm.sh/@semaphore-protocol/proof@latest";
 
     const API = "https://zk-one-click-api.vercel.app";
@@ -69,21 +70,33 @@
 
           console.log("Generating proof...", { root, epoch, signal });
 
-          // 2) ゼロ知識証明を生成
+          // 2) Groupを作成（デモ用の空のGroup）
+          const group = new Group(20);
+          // IdentityをGroupに追加
+          group.addMember(identity.commitment);
+
+          // 3) ゼロ知識証明を生成
           // Semaphore Protocolのデモ用circuitファイルを使用
           const wasmFilePath = "https://www.trusted-setup-pse.org/semaphore/20/semaphore.wasm";
           const zkeyFilePath = "https://www.trusted-setup-pse.org/semaphore/20/semaphore.zkey";
 
-          const { proof, publicSignals } = await generateProof(identity, {
-            circuit: {
-              wasmFilePath,
-              zkeyFilePath
-            },
-            merkleTreeDepth: 20,
-            merkleRoot: root,
-            externalNullifier: epoch,
-            signal
-          });
+          const snarkArtifacts = {
+            wasmFilePath,
+            zkeyFilePath
+          };
+
+          // message = signal, scope = epoch
+          const message = signal;
+          const scope = epoch;
+
+          const { proof, publicSignals } = await generateProof(
+            identity,
+            group,
+            message,
+            scope,
+            20, // merkleTreeDepth
+            snarkArtifacts
+          );
 
           console.log("Proof generated:", { proof, publicSignals });
 
