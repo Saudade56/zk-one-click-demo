@@ -75,20 +75,39 @@
           let group;
           try {
             // 方法1: treeDepthのみ
+            console.log("Trying Group(20)...");
             group = new Group(20);
+            console.log("Group created, adding member...");
             group.addMember(identity.commitment);
+            console.log("Member added successfully");
           } catch (e1) {
+            console.error("Method 1 failed:", e1);
             try {
               // 方法2: オプションオブジェクト
+              console.log("Trying Group({ treeDepth: 20 })...");
               group = new Group({ treeDepth: 20 });
+              console.log("Group created, adding member...");
               group.addMember(identity.commitment);
+              console.log("Member added successfully");
             } catch (e2) {
+              console.error("Method 2 failed:", e2);
               try {
                 // 方法3: メンバー配列と一緒に
+                console.log("Trying Group(20, [identity.commitment])...");
                 group = new Group(20, [identity.commitment]);
+                console.log("Group created with member");
               } catch (e3) {
-                console.error("All Group constructor methods failed:", e1, e2, e3);
-                throw new Error("Failed to create Group");
+                console.error("Method 3 failed:", e3);
+                // 方法4: 空の配列で初期化
+                try {
+                  console.log("Trying Group([])...");
+                  group = new Group([]);
+                  group.addMember(identity.commitment);
+                  console.log("Group created with empty array");
+                } catch (e4) {
+                  console.error("All Group constructor methods failed:", e1, e2, e3, e4);
+                  throw new Error(`Failed to create Group. Last error: ${e4.message || e4}`);
+                }
               }
             }
           }
