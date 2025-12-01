@@ -33,14 +33,17 @@
     const KEY = "zk-demo-secret";
 
     // DOMの読み込み完了を待つ
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       // 1) ブラウザ専用の秘密IDを発行（localStorageに保存）
-      let secret = localStorage.getItem(KEY);
+      let identity;
+      const secret = localStorage.getItem(KEY);
       if (!secret) {
-        secret = new Identity().toString();
-        localStorage.setItem(KEY, secret);
+        identity = new Identity();
+        localStorage.setItem(KEY, identity.toString());
+      } else {
+        // Identityを文字列から復元
+        identity = new Identity(secret);
       }
-      const identity = Identity.fromString(secret);
 
       const btn = document.getElementById("btn");
       const result = document.getElementById("result");
