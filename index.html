@@ -25,9 +25,9 @@
     <pre id="payload"></pre>
   </details>
   <script type="module">
-    import { Identity } from "https://esm.sh/@semaphore-protocol/identity@latest";
-    import { Group } from "https://esm.sh/@semaphore-protocol/group@latest";
-    import { generateProof } from "https://esm.sh/@semaphore-protocol/proof@latest";
+    import { Identity } from "https://esm.sh/@semaphore-protocol/identity@4.14.0";
+    import { Group } from "https://esm.sh/@semaphore-protocol/group@4.14.0";
+    import { generateProof } from "https://esm.sh/@semaphore-protocol/proof@4.14.0";
 
     const API = "https://zk-one-click-api.vercel.app";
 
@@ -71,9 +71,27 @@
           console.log("Generating proof...", { root, epoch, signal });
 
           // 2) Groupを作成（デモ用の空のGroup）
-          // 空のGroupを作成してからメンバーを追加
-          const group = new Group(20);
-          group.addMember(identity.commitment);
+          // Groupのコンストラクタを試行: まずはtreeDepthのみ
+          let group;
+          try {
+            // 方法1: treeDepthのみ
+            group = new Group(20);
+            group.addMember(identity.commitment);
+          } catch (e1) {
+            try {
+              // 方法2: オプションオブジェクト
+              group = new Group({ treeDepth: 20 });
+              group.addMember(identity.commitment);
+            } catch (e2) {
+              try {
+                // 方法3: メンバー配列と一緒に
+                group = new Group(20, [identity.commitment]);
+              } catch (e3) {
+                console.error("All Group constructor methods failed:", e1, e2, e3);
+                throw new Error("Failed to create Group");
+              }
+            }
+          }
 
           // 3) ゼロ知識証明を生成
           // Semaphore Protocolのデモ用circuitファイルを使用
