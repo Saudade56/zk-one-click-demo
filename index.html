@@ -18,7 +18,7 @@
     ※ 名前・メールアドレスなどは一切送りません。<br>
     送信するデータは下の「送信内容」に全部表示されます。
   </p>
-  <button id="btn">+1 する</button>
+  <button id="btn">一人一回ボタン</button>
   <div id="result" class="box" aria-live="polite"></div>
   <details class="box" open>
     <summary>送信内容プレビュー（proof / root / epoch / signal / nullifier）</summary>
@@ -30,142 +30,61 @@
     import { generateProof } from "https://esm.sh/@semaphore-protocol/proof@4.14.0";
 
     const API = "https://zk-one-click-api.vercel.app";
-
     const KEY = "zk-demo-secret";
 
-    // DOMの読み込み完了を待つ
-    document.addEventListener("DOMContentLoaded", async () => {
-      // 1) ブラウザ専用の秘密IDを発行（localStorageに保存）
-      let identity;
-      const secret = localStorage.getItem(KEY);
-      if (!secret) {
-        identity = new Identity();
-        localStorage.setItem(KEY, identity.toString());
-      } else {
-        // Identityを文字列から復元
-        identity = new Identity(secret);
-      }
-
+    document.addEventListener("DOMContentLoaded", () => {
       const btn = document.getElementById("btn");
       const result = document.getElementById("result");
       const payloadBox = document.getElementById("payload");
 
-      if (!btn || !result || !payloadBox) {
-        console.error("Required elements not found");
-        return;
-      }
+      // Identityの取得または作成
+      const secret = localStorage.getItem(KEY);
+      const identity = secret ? new Identity(secret) : (() => {
+        const id = new Identity();
+        localStorage.setItem(KEY, id.toString());
+        return id;
+      })();
 
       btn.onclick = async () => {
         try {
-          result.textContent = "証明を生成しています…（1〜2秒かかることがあります）";
+          result.textContent = "証明を生成しています…";
           btn.disabled = true;
 
-          // epoch = 今日の日付（例: "2025-12-05"）
-          const today = new Date().toISOString().slice(0, 10);
-          const epoch = today;
+          const epoch = new Date().toISOString().slice(0, 10);
           const signal = "like";
 
-          // デモ用の root（本気でやるときはサーバから配る）
-          const root = "0x123456789abcdef";
+          const group = new Group();
+          group.addMember(identity.commitment);
+          const root = group.root.toString();
 
-          console.log("Generating proof...", { root, epoch, signal });
+          const proofResult = await generateProof(identity, group, epoch, signal, 20);
+          const proof = proofResult.proof || proofResult;
+          const publicSignals = proofResult.publicSignals || proofResult;
+          const nullifier = publicSignals?.nullifierHash || publicSignals?.nullifier || proof?.nullifier;
 
-          // 2) Groupを作成（デモ用の空のGroup）
-          // Groupのコンストラクタを試行: まずはtreeDepthのみ
-          let group;
-          try {
-            // 方法1: treeDepthのみ
-            console.log("Trying Group(20)...");
-            group = new Group(20);
-            console.log("Group created, adding member...");
-            group.addMember(identity.commitment);
-            console.log("Member added successfully");
-          } catch (e1) {
-            console.error("Method 1 failed:", e1);
-            try {
-              // 方法2: オプションオブジェクト
-              console.log("Trying Group({ treeDepth: 20 })...");
-              group = new Group({ treeDepth: 20 });
-              console.log("Group created, adding member...");
-              group.addMember(identity.commitment);
-              console.log("Member added successfully");
-            } catch (e2) {
-              console.error("Method 2 failed:", e2);
-              try {
-                // 方法3: メンバー配列と一緒に
-                console.log("Trying Group(20, [identity.commitment])...");
-                group = new Group(20, [identity.commitment]);
-                console.log("Group created with member");
-              } catch (e3) {
-                console.error("Method 3 failed:", e3);
-                // 方法4: 空の配列で初期化
-                try {
-                  console.log("Trying Group([])...");
-                  group = new Group([]);
-                  group.addMember(identity.commitment);
-                  console.log("Group created with empty array");
-                } catch (e4) {
-                  console.error("All Group constructor methods failed:", e1, e2, e3, e4);
-                  throw new Error(`Failed to create Group. Last error: ${e4.message || e4}`);
-                }
-              }
-            }
+          if (!proof || !nullifier) {
+            throw new Error("証明の生成に失敗しました");
           }
 
-          // 3) ゼロ知識証明を生成
-          // Semaphore Protocolのデモ用circuitファイルを使用
-          const wasmFilePath = "https://www.trusted-setup-pse.org/semaphore/20/semaphore.wasm";
-          const zkeyFilePath = "https://www.trusted-setup-pse.org/semaphore/20/semaphore.zkey";
-
-          const snarkArtifacts = {
-            wasmFilePath,
-            zkeyFilePath
-          };
-
-          // message = signal, scope = epoch
-          const message = signal;
-          const scope = epoch;
-
-          const { proof, publicSignals } = await generateProof(
-            identity,
-            group,
-            message,
-            scope,
-            20, // merkleTreeDepth
-            snarkArtifacts
-          );
-
-          console.log("Proof generated:", { proof, publicSignals });
-
-          const nullifier = publicSignals.nullifierHash;
-
-          // 3) サーバに送るJSON
           const body = { proof, root, epoch, signal, nullifier };
           payloadBox.textContent = JSON.stringify(body, null, 2);
 
-          console.log("Sending request to API...", `${API}/api/verify/rln`);
-
-          // 4) Vercel Functions に送信
           const resp = await fetch(`${API}/api/verify/rln`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
           });
 
-          console.log("Response status:", resp.status);
-
           const res = await resp.json();
-          console.log("Response data:", res);
 
           if (resp.ok && res.ok) {
-            result.textContent = `OK! いまのカウント: ${res.count}`;
+            result.textContent = `✅ 押しました！現在のカウント: ${res.count}`;
           } else {
-            result.textContent = `失敗: ${res.reason || "unknown error"}`;
+            result.textContent = `❌ ${res.reason || "エラーが発生しました"}`;
           }
         } catch (e) {
-          console.error("Error details:", e);
-          result.textContent = `エラーが発生しました: ${e.message || e}`;
-          payloadBox.textContent = `エラー詳細:\n${e.stack || e}`;
+          result.textContent = `エラー: ${e.message}`;
+          payloadBox.textContent = e.stack || e;
         } finally {
           btn.disabled = false;
         }
@@ -174,4 +93,3 @@
   </script>
 </body>
 </html>
-
